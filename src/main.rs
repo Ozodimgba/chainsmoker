@@ -17,10 +17,18 @@ use std::{
 };
 use solana_ledger::shred::{Shred};
 
+
+fn get_local_ip() -> Result<IpAddr, Box<dyn std::error::Error>> {
+    let socket = UdpSocket::bind("0.0.0.0:0")?;
+    socket.connect("8.8.8.8:80")?;
+    Ok(socket.local_addr()?.ip())
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let identity_keypair = Arc::new(Keypair::new());
     let pubkey = identity_keypair.pubkey();
-    let local_ip: IpAddr = "0.0.0.0".parse()?; 
+    let local_ip = get_local_ip()?;
+    // let local_ip: IpAddr = "172.225.99.254".parse()?;
     
     println!("Local IP: {:?}", local_ip);
     println!("Node identity: {}", pubkey);
@@ -41,7 +49,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut resolved_entrypoints = Vec::new();
     for (i, entrypoint_str) in entrypoint_strings.iter().enumerate() {
-        println!("  Resolving entrypoint {}: '{}'", i+1, entrypoint_str);
+        println!("Resolving entrypoint {}: '{}'", i+1, entrypoint_str);
         
         let entrypoint_addr: SocketAddr = entrypoint_str
             .to_socket_addrs()
@@ -154,7 +162,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         i+1, contact_info.pubkey(), tvu_addr);
             }
         }
-        println!("📊 === END PEER DETAILS ===\n");
+        println!("=== END PEER DETAILS ===\n");
     }
         
         if peers.len() > 100 {
@@ -191,7 +199,7 @@ fn start_shred_receiver(socket: Arc<UdpSocket>) -> thread::JoinHandle<()> {
         let mut buffer = [0u8; 1232]; // Max shred size
         let mut shred_count = 0u64;
         
-        println!("🚀 Starting shred receiver...");
+        println!("Starting shred receiver...");
         
         loop {
             match socket.recv_from(&mut buffer) {
@@ -201,7 +209,7 @@ fn start_shred_receiver(socket: Arc<UdpSocket>) -> thread::JoinHandle<()> {
                     // Try to parse as shred
                     match parse_shred(&buffer[..size]) {
                         Ok(shred_info) => {
-                            println!("📦 SHRED #{}: {} from {} | Slot: {} | Index: {} | Type: {:?}", 
+                            println!("SHRED #{}: {} from {} | Slot: {} | Index: {} | Type: {:?}", 
                                 shred_count,
                                 size,
                                 sender_addr,
@@ -211,13 +219,13 @@ fn start_shred_receiver(socket: Arc<UdpSocket>) -> thread::JoinHandle<()> {
                             );
                         }
                         Err(_) => {
-                            println!("📨 NON-SHRED #{}: {} bytes from {}", 
+                            println!("NON-SHRED #{}: {} bytes from {}", 
                                 shred_count, size, sender_addr);
                         }
                     }
                 }
                 Err(e) => {
-                    eprintln!("❌ Receive error: {}", e);
+                    eprintln!("Receive error: {}", e);
                     thread::sleep(Duration::from_millis(100));
                 }
             }
