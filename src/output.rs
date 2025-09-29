@@ -29,7 +29,7 @@
 : If a plugin errors, it logs a warning but continues sending to other plugins.
 
 *  ** Usage Pattern **
-: 
+:
 : 1. Create plugin instance
 : 2. Add to PluginRunner via `add_plugin()`
 : 3. Call `start_all()` to initialize all plugins
@@ -39,25 +39,25 @@
 *  ** Example Plugin Implementation **
 :
 : struct MyPlugin { /* state */ }
-: 
+:
 : #[async_trait::async_trait]
 : impl OutputPlugin for MyPlugin {
 :     async fn start(&mut self) -> Result<(), Box<dyn std::error::Error>> {
 :         // Setup your server/connection
 :         Ok(())
 :     }
-:     
+:
 :     async fn handle_shred(&mut self, shred: Shred) -> Result<(), Box<dyn std::error::Error>> {
 :         // Process/forward the shred
 :         println!("Slot: {}", shred.slot());
 :         Ok(())
 :     }
-:     
+:
 :     async fn stop(&mut self) -> Result<(), Box<dyn std::error::Error>> {
 :         // Cleanup
 :         Ok(())
 :     }
-:     
+:
 :     fn name(&self) -> &str { "MyPlugin" }
 : }
 
@@ -82,7 +82,9 @@ pub struct PluginRunner {
 
 impl PluginRunner {
     pub fn new() -> Self {
-        Self { plugins: Vec::new() }
+        Self {
+            plugins: Vec::new(),
+        }
     }
 
     pub fn add_plugin(&mut self, plugin: Box<dyn OutputPlugin>) {

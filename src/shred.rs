@@ -53,13 +53,11 @@
 ! Max size for shred packet is 1228 bytes (Legacy) or 1203 bytes (Merkle).
 */
 
-use std::{net::UdpSocket, sync::Arc};
+use crate::{stats::ReceiveStats, utils::parse_shred};
 use log::{debug, error};
 use solana_ledger::shred::Shred;
+use std::{net::UdpSocket, sync::Arc};
 use tokio::sync::mpsc;
-use crate::{stats::ReceiveStats, utils::{parse_shred}};
-
-
 
 pub struct ShredReceiver {
     socket: Arc<UdpSocket>,
@@ -69,25 +67,30 @@ pub struct ShredReceiver {
 
 impl ShredReceiver {
     pub fn new(socket: Arc<UdpSocket>) -> Self {
-        let ( sender, receiver ) = mpsc::unbounded_channel::<Shred>();
+        let (sender, receiver) = mpsc::unbounded_channel::<Shred>();
 
         Self {
             socket,
             sender,
-            receiver
+            receiver,
         }
     }
 
     fn process_packet(data: &[u8], sender_addr: std::net::SocketAddr, count: u64) -> Option<Shred> {
         match parse_shred(data) {
-            Ok(shred) => {          
-                // debug!("SHRED #{}: Slot:{} Index:{} Type:{:?} from {}", 
+            Ok(shred) => {
+                // debug!("SHRED #{}: Slot:{} Index:{} Type:{:?} from {}",
                 //     count, shred.slot(), shred.index(), shred.shred_type(), sender_addr);
-                
+
                 Some(shred)
             }
             Err(_) => {
-                debug!("NON-SHRED #{}: {} bytes from {}", count, data.len(), sender_addr);
+                debug!(
+                    "NON-SHRED #{}: {} bytes from {}",
+                    count,
+                    data.len(),
+                    sender_addr
+                );
                 None
             }
         }
@@ -99,22 +102,24 @@ impl ShredReceiver {
 
         tokio::spawn(async move {
             debug!("Starting shred receiver...");
-            
+
             let mut buffer = [0u8; 1232];
             let mut stats = ReceiveStats::new();
-            
+
             loop {
                 match socket.recv_from(&mut buffer) {
                     Ok((size, sender_addr)) => {
                         stats.increment();
-                        
-                        if let Some(shred_data) = Self::process_packet(&buffer[..size], sender_addr, stats.count) {
+
+                        if let Some(shred_data) =
+                            Self::process_packet(&buffer[..size], sender_addr, stats.count)
+                        {
                             if sender.send(shred_data).is_err() {
                                 error!("Output channel closed, stopping receiver");
                                 break;
                             }
                         }
-                        
+
                         stats.maybe_log();
                     }
                     Err(e) => {
