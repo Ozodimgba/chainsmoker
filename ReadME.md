@@ -56,4 +56,9 @@ Solana Validators
  N Clients           N Clients            Your Logic
  ```
 
- 
+# Project: Kilimanjaro
+Chainsmoke is part of project Kilimajaro
+
+Kilimanjaro is a suite of tools aimed at revitalizing the read layer on Solana. Other public projects include:
+
+- [Osoh](https://github.com/Ozodimgba/osoh)
