@@ -54,33 +54,43 @@
 */
 
 use crate::{stats::ReceiveStats, utils::parse_shred};
-use log::{debug, error};
+use log::{debug, error, info};
 use solana_ledger::shred::Shred;
-use std::{net::UdpSocket, sync::Arc};
-use tokio::sync::mpsc;
+use std::{net::UdpSocket, sync::Arc, thread, time::Duration};
+use std::sync::mpsc;
 
 pub struct ShredReceiver {
     socket: Arc<UdpSocket>,
-    sender: mpsc::UnboundedSender<Shred>,
-    receiver: mpsc::UnboundedReceiver<Shred>,
+    sender: mpsc::Sender<Shred>,
+    receiver: Option<mpsc::Receiver<Shred>>,
 }
 
 impl ShredReceiver {
     pub fn new(socket: Arc<UdpSocket>) -> Self {
-        let (sender, receiver) = mpsc::unbounded_channel::<Shred>();
+        let (sender, receiver) = mpsc::channel::<Shred>();
+
+        if let Err(e) = socket.set_nonblocking(false) {
+            error!("Failed to set socket blocking: {}", e);
+        }
 
         Self {
             socket,
             sender,
-            receiver,
+            receiver: Some(receiver), 
         }
     }
 
     fn process_packet(data: &[u8], sender_addr: std::net::SocketAddr, count: u64) -> Option<Shred> {
         match parse_shred(data) {
             Ok(shred) => {
-                // debug!("SHRED #{}: Slot:{} Index:{} Type:{:?} from {}",
-                //     count, shred.slot(), shred.index(), shred.shred_type(), sender_addr);
+                info!(
+                    "SHRED #{}: Slot:{} Index:{} Type:{:?} from {}",
+                    count,
+                    shred.slot(),
+                    shred.index(),
+                    shred.shred_type(),
+                    sender_addr
+                );
 
                 Some(shred)
             }
@@ -96,12 +106,12 @@ impl ShredReceiver {
         }
     }
 
-    pub fn start(&mut self) -> tokio::task::JoinHandle<()> {
+    pub fn start(&mut self) -> thread::JoinHandle<()> {
         let socket = self.socket.clone();
         let sender = self.sender.clone();
 
-        tokio::spawn(async move {
-            debug!("Starting shred receiver...");
+        thread::spawn(move || {
+            info!("Starting shred receiver...");
 
             let mut buffer = [0u8; 1232];
             let mut stats = ReceiveStats::new();
@@ -114,6 +124,7 @@ impl ShredReceiver {
                         if let Some(shred_data) =
                             Self::process_packet(&buffer[..size], sender_addr, stats.count)
                         {
+                            // CHANGED: Use std::sync::mpsc send() instead of tokio
                             if sender.send(shred_data).is_err() {
                                 error!("Output channel closed, stopping receiver");
                                 break;
@@ -124,21 +135,14 @@ impl ShredReceiver {
                     }
                     Err(e) => {
                         error!("Receive error: {}", e);
-                        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                        thread::sleep(Duration::from_millis(100));
                     }
                 }
             }
         })
     }
 
-    pub fn get_sender(&self) -> mpsc::UnboundedSender<Shred> {
-        self.sender.clone()
-    }
-
-    pub fn take_receiver(&mut self) -> mpsc::UnboundedReceiver<Shred> {
-        let (new_sender, new_receiver) = mpsc::unbounded_channel();
-        let old_receiver = std::mem::replace(&mut self.receiver, new_receiver);
-        self.sender = new_sender;
-        old_receiver
+    pub fn take_receiver(&mut self) -> mpsc::Receiver<Shred> {
+        self.receiver.take().expect("Receiver already taken")
     }
 }

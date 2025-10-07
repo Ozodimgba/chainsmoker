@@ -106,12 +106,12 @@ impl GossipNode {
                 log_peer_details(&peers, &tpu_peers, iteration);
             }
 
-            // if peers.len() > 100 {
-            //     info!("   Successfully joined Solana gossip network!");
-            //     info!("   Validators discovered: {}", peers.len());
-            //     info!("   With TVU endpoints: {}", tpu_peers.len());
-            //     break;
-            // }
+            if peers.len() > 100 {
+                info!("   Successfully joined Solana gossip network!");
+                // info!("   Validators discovered: {}", peers.len());
+                // info!("   With TVU endpoints: {}", tpu_peers.len());
+                break;
+            }
         }
     }
 }
